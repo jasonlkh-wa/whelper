@@ -1,7 +1,7 @@
 import pandas as pd
 import os
-import argparse
 import logging
+import dotenv
 
 
 def dirname(file: str) -> str:
@@ -54,6 +54,17 @@ def setup_main_logger():
     logger.addHandler(console_handler)
 
     return logger
+
+
+def setup_logger_and_pwd(file):
+    # ----------------- Configure logger -----------------
+    logger = logging.getLogger("main_logger")
+
+    # ----------------- Base file paths ------------------
+    dotenv.load_dotenv()
+    PWD = dirname(file)
+
+    return logger, PWD
 
 
 format_codes = {
@@ -121,7 +132,3 @@ def printls(x: str, n=50):
     """Print a line separator followed by the input string and another line separator."""
     line_separator = "-" * n
     print(f"{line_separator}\n{x}\n{line_separator}")
-
-
-if __name__ == "__main__":
-    pass
