@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import logging
 import dotenv
+import datetime
 
 
 def dirname(file: str) -> str:
@@ -132,3 +133,21 @@ def printls(x: str, n=50):
     """Print a line separator followed by the input string and another line separator."""
     line_separator = "-" * n
     print(f"{line_separator}\n{x}\n{line_separator}")
+
+
+import os
+import shutil
+import datetime
+
+
+def backup_file_with_timestamp(file, backup_dir):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    file_name, file_extension = os.path.splitext(
+        os.path.basename(file)
+    )  # Get the file name and extension
+
+    backup_file = f"{file_name}_{timestamp}{file_extension}"
+    os.makedirs(backup_dir, exist_ok=True)
+    shutil.copy2(file, os.path.join(backup_dir, backup_file))
+    print(f"File '{file}' backed up as '{backup_file}' in '{backup_dir}'")
