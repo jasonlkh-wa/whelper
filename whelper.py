@@ -184,10 +184,11 @@ def backup_directory_with_timestamp(dir, ignore_list=None):
                     shutil.copy2(item_path, backup_item_path)
                 else:
                     shutil.copytree(item_path, backup_item_path)
-
-    finally:
+    except Exception as e:
         if os.path.exists(backup_timestamp_dir):
             shutil.rmtree(backup_timestamp_dir)
         print(
             f"Error backing up directory '{dir}'\nAll backup files created are removed.\n"
         )
+
+        raise e
