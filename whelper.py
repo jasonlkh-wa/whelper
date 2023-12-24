@@ -164,22 +164,30 @@ def backup_directory_with_timestamp(dir, ignore_list=None):
     Returns:
         None
     """
-    if not ignore_list:
-        ignore_list = []
-    backup_dir = os.path.join(dir, ".backup")
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    backup_timestamp_dir = os.path.join(backup_dir, timestamp)
+    try:
+        if not ignore_list:
+            ignore_list = []
+        backup_dir = os.path.join(dir, ".backup")
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        backup_timestamp_dir = os.path.join(backup_dir, timestamp)
 
-    if not os.path.exists(backup_dir):
-        os.mkdir(backup_dir)
+        if not os.path.exists(backup_dir):
+            os.mkdir(backup_dir)
 
-    os.mkdir(backup_timestamp_dir)
+        os.mkdir(backup_timestamp_dir)
 
-    for item in os.listdir(dir):
-        if item != ".backup" and item not in ignore_list:
-            item_path = os.path.join(dir, item)
-            backup_item_path = os.path.join(backup_timestamp_dir, item)
-            if os.path.isfile(item_path):
-                shutil.copy2(item_path, backup_item_path)
-            else:
-                shutil.copytree(item_path, backup_item_path)
+        for item in os.listdir(dir):
+            if item != ".backup" and item not in ignore_list:
+                item_path = os.path.join(dir, item)
+                backup_item_path = os.path.join(backup_timestamp_dir, item)
+                if os.path.isfile(item_path):
+                    shutil.copy2(item_path, backup_item_path)
+                else:
+                    shutil.copytree(item_path, backup_item_path)
+
+    finally:
+        if os.path.exists(backup_timestamp_dir):
+            shutil.rmtree(backup_timestamp_dir)
+        print(
+            f"Error backing up directory '{dir}'\nAll backup files created are removed.\n"
+        )
