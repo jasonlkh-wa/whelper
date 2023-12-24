@@ -153,13 +153,14 @@ def backup_file_with_timestamp(file, backup_dir):
     print(f"File '{file}' backed up as '{backup_file}' in '{backup_dir}'")
 
 
-def backup_directory_with_timestamp(dir, ignore_set=None):
+def backup_directory_with_timestamp(dir, ignore_set=None, ignore_hidden=True):
     """
     Creates a backup of the directory under [dir/.backup/<timestamp>].
 
     Args:
         dir (str): The directory to be backed up.
         ignore_set (list, optional): List of files or directories to be ignored during backup.
+        ignore_hidden (bool, optional): Whether to ignore hidden files and directories.
 
     Returns:
         None
@@ -178,6 +179,8 @@ def backup_directory_with_timestamp(dir, ignore_set=None):
 
         for item in os.listdir(dir):
             if item != ".backup" and item not in ignore_set:
+                if ignore_hidden and item.startswith("."):
+                    continue
                 item_path = os.path.join(dir, item)
                 backup_item_path = os.path.join(backup_timestamp_dir, item)
                 if os.path.isfile(item_path):
