@@ -4,6 +4,9 @@ import logging
 import dotenv
 import datetime
 
+# CR-someday: Change the whelper to a module (__init__) instead of distributing one single file
+from lib.whelper_textual import *
+
 
 def dirname(file: str) -> str:
     """Returns the directory name of a given file path."""

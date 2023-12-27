@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # Copy whelper.py to all Conda environments
     copy_whelper_to_envs(ENVS_DIR, conda_envs_names, whelper_path)
 
-    # CR-someday Code for unit testing, will be moved to testing file later
+    # CR-someday: Code for unit testing, will be moved to testing file later
     # copy_whelper_to_envs(
     #     ENVS_DIR, conda_envs_names, whelper_path, test_env="standard-gui"
     # )
