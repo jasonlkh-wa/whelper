@@ -1,2 +1,4 @@
 from .whelper import *
-from .lib import whelper_textual
+from .submodule import whelper_textual
+
+# CR-someday kleung: this file is not used at the moment
