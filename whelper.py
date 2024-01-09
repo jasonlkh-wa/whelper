@@ -3,8 +3,7 @@ import os
 import logging
 import dotenv
 import datetime
-
-# CR-someday: Change the whelper to a module (__init__) instead of distributing one single file
+import shutil
 
 
 def dirname(file: str) -> str:
@@ -135,11 +134,6 @@ def printls(x: str, n=50):
     """Print a line separator followed by the input string and another line separator."""
     line_separator = "-" * n
     print(f"{line_separator}\n{x}\n{line_separator}")
-
-
-import os
-import shutil
-import datetime
 
 
 def backup_file_with_timestamp(file, backup_dir):

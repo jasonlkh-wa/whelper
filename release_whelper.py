@@ -25,7 +25,14 @@ def get_python_version(env_path):
 
 def copy_whelper_to_envs(envs_dir, envs, whelper_path, test_env=False):
     def write_whelper_to_env(env, python_version, whelper_path, dest_path):
-        shutil.copy(whelper_path, dest_path)
+        if os.path.exists(dest_path):
+            shutil.rmtree(dest_path)
+
+        shutil.copytree(
+            whelper_path,
+            dest_path,
+            ignore=shutil.ignore_patterns(".*"),
+        )
         print(f"whelper.py copied to {env} environment (Python {python_version}).")
 
     if test_env:
@@ -37,7 +44,7 @@ def copy_whelper_to_envs(envs_dir, envs, whelper_path, test_env=False):
         env_path = os.path.join(envs_dir, env)
         python_version = get_python_version(env_path)
         dest_path = os.path.join(
-            env_path, "lib", f"python{python_version}", "whelper.py"
+            env_path, "lib", f"python{python_version}", MODULE_NAME
         )
 
         if (
@@ -68,12 +75,13 @@ def copy_whelper_to_envs(envs_dir, envs, whelper_path, test_env=False):
 if __name__ == "__main__":
     ENVS_DIR = os.path.expanduser("~/opt/miniconda3/envs")
     PWD = whelper.dirname(__file__)
+    MODULE_NAME = "whelper"
 
     # Get the conda environment names
     conda_envs_names = get_conda_envs_names(ENVS_DIR)
 
     # Specify the path to whelper.py
-    whelper_path = os.path.join(PWD, "whelper.py")
+    whelper_path = os.path.join(PWD)
 
     # Copy whelper.py to all Conda environments
     copy_whelper_to_envs(ENVS_DIR, conda_envs_names, whelper_path)
