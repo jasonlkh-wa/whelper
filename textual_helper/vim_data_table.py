@@ -1,7 +1,9 @@
-from textual.widgets import DataTable, Label, Footer, Header
+from textual.widgets import DataTable, Footer, Header, Label
 from textual.binding import Binding
 from textual.screen import Screen
+from textual.coordinate import Coordinate
 from textual.app import ComposeResult
+import textwrap
 
 
 class VimDataTable(DataTable):
@@ -12,7 +14,7 @@ class VimDataTable(DataTable):
         Binding(key="h", action="cursor_left", description="Move left", show=False),
         Binding(
             key="p",
-            action="show_cell_detail()",
+            action="show_row_detail()",
             description="Show details",
             show=True,
         ),
@@ -22,22 +24,29 @@ class VimDataTable(DataTable):
         super().__init__(name=name, id=id)
         self.cols = cols
 
-    def action_show_cell_detail(self):
+    def action_show_row_detail(self):
         cursor_row_values = [
             list(i) for i in zip(self.cols, self.get_row_at(self.cursor_row))
         ]
 
         if self.name != "ROW_DETAILS":
-            self.app.push_screen(DetailText(cursor_row_values))
+            self.app.push_screen(DetailRow(cursor_row_values))
 
 
-class DetailText(Screen):
+class DetailRow(Screen):
     BINDINGS = [
         Binding(
             key="backspace, q",
             action="app.pop_screen",
             description="Back",
             show=True,
+        ),
+        Binding(
+            key="p",
+            action="show_full_text",
+            description="Show full text",
+            show=True,
+            priority=True,
         ),
     ]
 
@@ -59,3 +68,36 @@ class DetailText(Screen):
 
         for row in self.values:
             details.add_row(*row, height=max([len(i) // 50 + 1 for i in row]))
+
+    def action_show_full_text(self):
+        details = self.query_one("#details", VimDataTable)
+        self.app.push_screen(
+            DetailCell(
+                details.get_cell_at(
+                    Coordinate(
+                        details.cursor_row,
+                        1,
+                    )
+                )
+            )
+        )
+
+
+class DetailCell(Screen):
+    BINDINGS = [
+        Binding(
+            key="backspace, q",
+            action="app.pop_screen",
+            description="Back",
+            show=True,
+        ),
+    ]
+
+    def __init__(self, value, name=None, id=None):
+        super().__init__(name, id)
+        self.value = value
+
+    def compose(self) -> ComposeResult:
+        yield Label("\n".join(textwrap.wrap(self.value, width=50)))
+        yield Header(show_clock=True)
+        yield Footer()
