@@ -9,7 +9,6 @@ import datetime
 import csv
 
 
-# CR: the input variable is override the python input function
 class TableUI(Screen):
     DEFAULT_CSS = """
     TablueUI {
@@ -32,12 +31,12 @@ class TableUI(Screen):
         background: #f39c12 30%;
     }
 
-    #input {
+    #input_field {
         padding: 0 1 0 1;
         margin: 0 -1 0 -1;
     }
 
-    #input:focus {
+    #input_field:focus {
         border: tall #ffffff;
     }
 
@@ -57,7 +56,7 @@ class TableUI(Screen):
         Binding(
             key="escape",
             action="off_input_focus()",
-            description="Off input focus",
+            description="Off input_field focus",
             show=False,
         ),
         Binding(
@@ -105,7 +104,7 @@ class TableUI(Screen):
 
     def compose(self) -> ComposeResult:
         yield VimDataTable(id="table", cols=self.header)
-        yield Input(id="input", disabled=True)
+        yield Input(id="input_field", disabled=True)
         yield Log(id="log")
         yield Header(show_clock=True)
         yield Footer()
@@ -126,18 +125,18 @@ class TableUI(Screen):
             )
 
     def focus_input_field(self, message: str = ""):
-        input = self.query_one("#input", Input)
-        input.disabled = False
+        input_field = self.query_one("#input_field", Input)
+        input_field.disabled = False
 
-        input.validators = [
+        input_field.validators = [
             PrefixEnforceValidator(
                 prefix=message,
-                input=input,
+                input_field=input_field,
             )
         ]
 
-        input.value = message
-        input.focus()
+        input_field.value = message
+        input_field.focus()
 
     def action_add_row(self):
         self.focus_input_field(":a ")
@@ -174,10 +173,10 @@ class TableUI(Screen):
             row_values = [self._truncate(i, 20) for i in table.get_row_at(cursor_row)]
             self.log_message(f"delete {row_values}? y/[n]")
 
-            input = self.query_one("#input", Input)
-            input.disabled = False
-            input.value = self.DELETE_MESSAGE
-            input.focus()
+            input_field = self.query_one("#input_field", Input)
+            input_field.disabled = False
+            input_field.value = self.DELETE_MESSAGE
+            input_field.focus()
 
     def delete_row(self, message: str):
         if message.lower() == "y":
@@ -217,38 +216,42 @@ class TableUI(Screen):
 
         self.log_message(f"Cell value updated successfully!")
 
-    def remove_prefix_enforce_validators(self, input: Input | None = None):
-        input = self.query_one("#input", input) if not input else input
-        if input.validators:
-            for i in input.validators:
+    def remove_prefix_enforce_validators(self, input_field: Input | None = None):
+        input_field = (
+            self.query_one("#input_field", input_field)
+            if not input_field
+            else input_field
+        )
+        if input_field.validators:
+            for i in input_field.validators:
                 if isinstance(i, PrefixEnforceValidator):
-                    input.validators.remove(i)
+                    input_field.validators.remove(i)
 
     def action_off_input_focus(self):
         self.remove_prefix_enforce_validators()
 
-        input = self.query_one("#input", Input)
-        if input.value:
+        input_field = self.query_one("#input_field", Input)
+        if input_field.value:
             log = self.query_one("#log", Log)
             log.write_line(" ")
-            input.value = ""
-        input.disabled = True
+            input_field.value = ""
+        input_field.disabled = True
 
     def on_input_submitted(self):
-        input = self.query_one("#input", Input)
-        if input.value.startswith(":a "):
-            self.add_row(input.value[3:])
-        elif input.value.startswith(self.DELETE_MESSAGE):
-            self.delete_row(input.value.split(" ")[-1])
-        elif input.value.startswith(":edit "):
-            self.edit_cell(input.value[6:])
+        input_field = self.query_one("#input_field", Input)
+        if input_field.value.startswith(":a "):
+            self.add_row(input_field.value[3:])
+        elif input_field.value.startswith(self.DELETE_MESSAGE):
+            self.delete_row(input_field.value.split(" ")[-1])
+        elif input_field.value.startswith(":edit "):
+            self.edit_cell(input_field.value[6:])
         else:
-            self.log_message(f"Invalid command <{input.value}>, nothing done")
+            self.log_message(f"Invalid command <{input_field.value}>, nothing done")
 
         self.remove_prefix_enforce_validators()
 
-        input.value = ""
-        input.disabled = True
+        input_field.value = ""
+        input_field.disabled = True
 
     def export_to_data_path(self):
         table = self.query_one("#table", VimDataTable)

@@ -10,15 +10,15 @@ class PrefixEnforceValidator(Validator):
     which allow a text to display before the input from the user
     """
 
-    def __init__(self, prefix: str, input: Input):
+    def __init__(self, prefix: str, input_field: Input):
         super().__init__()
         self.prefix = prefix
         self.pattern = f"{prefix}.*"
-        self.input = input
+        self.input_field = input_field
 
     def validate(self, value: str) -> ValidationResult:
         if not re.match(self.pattern, value):
-            self.input.value = self.prefix  # revert the value input
+            self.input_field.value = self.prefix  # revert the value input
             return self.failure(
                 failures=[
                     self.prefix,
