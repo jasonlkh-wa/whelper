@@ -1,4 +1,5 @@
 from .vim_data_table import VimDataTable
+from .prefix_enforce_validator import PrefixEnforceValidator
 from textual.widgets import Footer, Header, Input, Log
 from textual.binding import Binding
 from textual.screen import Screen
@@ -8,6 +9,7 @@ import datetime
 import csv
 
 
+# CR: the input variable is override the python input function
 class TableUI(Screen):
     DEFAULT_CSS = """
     TablueUI {
@@ -126,15 +128,25 @@ class TableUI(Screen):
     def focus_input_field(self, message: str = ""):
         input = self.query_one("#input", Input)
         input.disabled = False
+
+        input.validators = [
+            PrefixEnforceValidator(
+                prefix=message,
+                input=input,
+            )
+        ]
+
         input.value = message
         input.focus()
 
     def action_add_row(self):
         self.focus_input_field(":a ")
 
-    def log_message(self, message: str):
+    def log_message(self, *message):
         log = self.query_one("#log", Log)
-        log.write_line(f"{datetime.datetime.now().strftime('%H:%M:%S')} | {message}")
+        log.write_line(
+            f"{datetime.datetime.now().strftime('%H:%M:%S')} | {' '.join(message)}"
+        )
 
     def add_row(self, message: str):
         table = self.query_one("#table", VimDataTable)
@@ -157,14 +169,15 @@ class TableUI(Screen):
 
     def action_delete_current_row(self):
         table = self.query_one("#table", VimDataTable)
-        cursor_row = table.cursor_row
-        row_values = [self._truncate(i, 20) for i in table.get_row_at(cursor_row)]
-        self.log_message(f"delete {row_values}? y/[n]")
+        if table.row_count > 0:
+            cursor_row = table.cursor_row
+            row_values = [self._truncate(i, 20) for i in table.get_row_at(cursor_row)]
+            self.log_message(f"delete {row_values}? y/[n]")
 
-        input = self.query_one("#input", Input)
-        input.disabled = False
-        input.value = self.DELETE_MESSAGE
-        input.focus()
+            input = self.query_one("#input", Input)
+            input.disabled = False
+            input.value = self.DELETE_MESSAGE
+            input.focus()
 
     def delete_row(self, message: str):
         if message.lower() == "y":
@@ -204,7 +217,16 @@ class TableUI(Screen):
 
         self.log_message(f"Cell value updated successfully!")
 
+    def remove_prefix_enforce_validators(self, input: Input | None = None):
+        input = self.query_one("#input", input) if not input else input
+        if input.validators:
+            for i in input.validators:
+                if isinstance(i, PrefixEnforceValidator):
+                    input.validators.remove(i)
+
     def action_off_input_focus(self):
+        self.remove_prefix_enforce_validators()
+
         input = self.query_one("#input", Input)
         if input.value:
             log = self.query_one("#log", Log)
@@ -222,6 +244,8 @@ class TableUI(Screen):
             self.edit_cell(input.value[6:])
         else:
             self.log_message(f"Invalid command <{input.value}>, nothing done")
+
+        self.remove_prefix_enforce_validators()
 
         input.value = ""
         input.disabled = True
