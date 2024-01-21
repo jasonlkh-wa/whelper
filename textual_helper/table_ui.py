@@ -199,6 +199,10 @@ class TableUI(Screen):
         return s[:length] + ".." if len(s) > length else s
 
     def action_delete_current_row(self):
+        if not self.enable_delete_row:
+            self.log_message("Delete row is disabled")
+            return
+
         table = self.query_one("#table", VimDataTable)
         if table.row_count > 0:
             cursor_row = table.cursor_row
@@ -208,6 +212,10 @@ class TableUI(Screen):
             self.focus_input_field(self.DELETE_MESSAGE, suffix_pattern="[yn]{1}")
 
     def delete_row(self, message: str):
+        if not self.enable_delete_row:
+            self.log_message("Delete row is disabled")
+            return
+
         if message.lower() == "y":
             table = self.query_one("#table", VimDataTable)
             row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
@@ -280,10 +288,7 @@ class TableUI(Screen):
         if input_field.value.startswith(":a "):
             self.add_row(input_field.value[3:])
         elif input_field.value.startswith(self.DELETE_MESSAGE):
-            if self.enable_delete_row:
-                self.delete_row(input_field.value.split(" ")[-1])
-            else:
-                self.log_message("Delete row is disabled")
+            self.delete_row(input_field.value.split(" ")[-1])
         elif input_field.value.startswith(":edit "):
             self.edit_cell(input_field.value[6:])
         else:
