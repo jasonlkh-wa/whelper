@@ -1,4 +1,4 @@
-from .vim_data_table import VimDataTable
+from .vim_data_table import VimDataTable, DetailCell
 from .prefix_enforce_validator import PrefixEnforceValidator
 from textual.widgets import Footer, Header, Input, Log
 from textual.binding import Binding
@@ -28,6 +28,10 @@ import csv
 # (consider checking if the user define these two methods, raise a warning for that)
 # and the other part is method that hold some preprocessing/custom column definition/
 # [pattern:function] matching
+
+
+# CR-someday: It is a know issue that "[n]" or alphabets with square brackets are unable to display.
+# This is due to the textual library recognizing them as the terminal control sequences.
 class TableUI(Screen):
     DEFAULT_CSS = """
     TablueUI {
@@ -82,6 +86,7 @@ class TableUI(Screen):
             key="D", action="delete_current_row()", description="Delete", show=True
         ),
         Binding(key="E", action="edit_cell()", description="Edit", show=True),
+        Binding(key="P", action="show_log()", description="show log", show=True),
     ]
     DELETE_MESSAGE = ":d please confirm (y/[n]): "
 
@@ -243,7 +248,9 @@ class TableUI(Screen):
             self.log_message(f"{cursor_header} is not editable")
 
     def action_show_log(self):
-        pass
+        log = self.query_one("#log", Log)
+        self.app.push_screen(DetailCell(log.lines))
+        log.clear()
 
     def edit_cell(self, message: str, validate=None):
         table = self.query_one("#table", VimDataTable)

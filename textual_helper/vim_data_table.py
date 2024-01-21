@@ -73,12 +73,14 @@ class DetailRow(Screen):
         details = self.query_one("#details", VimDataTable)
         self.app.push_screen(
             DetailCell(
-                details.get_cell_at(
-                    Coordinate(
-                        details.cursor_row,
-                        1,
+                [
+                    details.get_cell_at(
+                        Coordinate(
+                            details.cursor_row,
+                            1,
+                        )
                     )
-                )
+                ]
             )
         )
 
@@ -93,11 +95,19 @@ class DetailCell(Screen):
         ),
     ]
 
-    def __init__(self, value, name=None, id=None):
+    def __init__(self, values: list[str], name=None, id=None):
         super().__init__(name, id)
-        self.value = value
+        # CR-someday: this is a temporary fix to textual wrongly
+        # identify the control sequences.
+        #
+        # The issue also exists in VimDataTable's main table, but users may want to
+        # style through the control sequences and do not expect the sequences to be a
+        # frequent issue in csv. Hence, they are not currently handled
+        self.values = [i.replace("[", "\[") for i in values]
 
     def compose(self) -> ComposeResult:
-        yield Label("\n".join(textwrap.wrap(self.value, width=50)))
+        yield Label(
+            "\n\n".join(["\n".join(textwrap.wrap(i, width=70)) for i in self.values])
+        )
         yield Header(show_clock=True)
         yield Footer()
