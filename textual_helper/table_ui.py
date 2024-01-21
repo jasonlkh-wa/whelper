@@ -9,6 +9,25 @@ import datetime
 import csv
 
 
+# CR-someday: the method override for some textual built in function
+# does not work well, e.g. when [on_mount] is overrided in a new class,
+# textual will call both [TableUI.on_mount] and [NewClass.on_mount]
+#
+# One of the temporary solution is to think of a way to easily edit the
+# [on_mount] and [on_input_submit] method.
+#
+# For [on_mount], the user would edit the function because they may want to
+# 1. preprocess the data before adding it
+# 2. add some custom columns apart from the columns from data source
+#
+# For [on_input_submit], the function can be refactored so that the user can
+# have custom dictionary to match [pattern:function] for the function
+#
+# please consider separating these functions in two part, one part is the
+# [on_mount]/[on_input_submit] which should not be overrided
+# (consider checking if the user define these two methods, raise a warning for that)
+# and the other part is method that hold some preprocessing/custom column definition/
+# [pattern:function] matching
 class TableUI(Screen):
     DEFAULT_CSS = """
     TablueUI {
@@ -46,7 +65,7 @@ class TableUI(Screen):
         background: #f39c12;
         color: #000000;
         padding: 0 0 0 1;
-        overflow: auto auto;  
+        overflow: hidden scroll;  
     }
     """
     BINDINGS = [
@@ -77,6 +96,9 @@ class TableUI(Screen):
         column_widths: list | None = None,
         data_export_rate: int | None = None,
         col_separator: str = ",",
+        enable_delete_row: bool = True,
+        use_default_on_mount: bool = True,
+        use_default_on_submit: bool = True,
     ):
         super().__init__(name, id)
         self.data_path = data_path
@@ -88,6 +110,9 @@ class TableUI(Screen):
         self.column_widths = column_widths or [None for _ in self.header]
         self.data_export_rate = data_export_rate
         self.col_separator = col_separator
+        self.enable_delete_row = enable_delete_row
+        self.use_default_on_mount = use_default_on_mount  # as [on_mount] method cannot be override, a bool is used to control the override
+        self.use_default_on_submit = use_default_on_submit  # as [on_submit] method cannot be override, a bool is used to control the override
 
     def parse_data_file(self, data_path, file_type):
         data = []
@@ -109,7 +134,13 @@ class TableUI(Screen):
         yield Header(show_clock=True)
         yield Footer()
 
+    # CR-someday: think of separating the add row function out so that
+    # users can easily amend the [on_mount], refer to [cli-tools/tood]
+    # when changing the function
     def on_mount(self) -> None:
+        if not self.use_default_on_mount:
+            return None
+
         table = self.query_one("#table", VimDataTable)
 
         for i, width in zip(self.header, self.column_widths):
@@ -124,7 +155,7 @@ class TableUI(Screen):
                 self.data_export_rate, self.export_to_data_path, pause=False
             )
 
-    def focus_input_field(self, message: str = ""):
+    def focus_input_field(self, message: str = "", suffix_pattern: str | None = None):
         input_field = self.query_one("#input_field", Input)
         input_field.disabled = False
 
@@ -132,6 +163,7 @@ class TableUI(Screen):
             PrefixEnforceValidator(
                 prefix=message,
                 input_field=input_field,
+                suffix_pattern=suffix_pattern,
             )
         ]
 
@@ -143,8 +175,8 @@ class TableUI(Screen):
 
     def log_message(self, *message):
         log = self.query_one("#log", Log)
-        log.write_line(
-            f"{datetime.datetime.now().strftime('%H:%M:%S')} | {' '.join(message)}"
+        log.write_lines(
+            [f"{datetime.datetime.now().strftime('%H:%M:%S')} | {' '.join(message)}"]
         )
 
     def add_row(self, message: str):
@@ -173,10 +205,7 @@ class TableUI(Screen):
             row_values = [self._truncate(i, 20) for i in table.get_row_at(cursor_row)]
             self.log_message(f"delete {row_values}? y/[n]")
 
-            input_field = self.query_one("#input_field", Input)
-            input_field.disabled = False
-            input_field.value = self.DELETE_MESSAGE
-            input_field.focus()
+            self.focus_input_field(self.DELETE_MESSAGE, suffix_pattern="[yn]{1}")
 
     def delete_row(self, message: str):
         if message.lower() == "y":
@@ -204,6 +233,9 @@ class TableUI(Screen):
             )
         else:
             self.log_message(f"{cursor_header} is not editable")
+
+    def action_show_log(self):
+        pass
 
     def edit_cell(self, message: str, validate=None):
         table = self.query_one("#table", VimDataTable)
@@ -233,16 +265,25 @@ class TableUI(Screen):
         input_field = self.query_one("#input_field", Input)
         if input_field.value:
             log = self.query_one("#log", Log)
-            log.write_line(" ")
+            log.write_lines(" ")
             input_field.value = ""
         input_field.disabled = True
 
+    # CR-someday: think of a better way for users to easily add new condiion
+    # to the function instead of overriding the whole function,
+    # a dict with [pattern:function] may help
     def on_input_submitted(self):
+        if not self.use_default_on_submit:
+            return None
+
         input_field = self.query_one("#input_field", Input)
         if input_field.value.startswith(":a "):
             self.add_row(input_field.value[3:])
         elif input_field.value.startswith(self.DELETE_MESSAGE):
-            self.delete_row(input_field.value.split(" ")[-1])
+            if self.enable_delete_row:
+                self.delete_row(input_field.value.split(" ")[-1])
+            else:
+                self.log_message("Delete row is disabled")
         elif input_field.value.startswith(":edit "):
             self.edit_cell(input_field.value[6:])
         else:
@@ -260,6 +301,7 @@ class TableUI(Screen):
                 with open(self.data_path, "w") as file:
                     csv.writer(file).writerow(self.header)
                     for idx in range(table.row_count):
+                        # this assume the new columns added must be placed after the original columns in data file
                         row = table.get_row_at(idx)[: len(self.header)]
                         csv.writer(file).writerow(row)
             case _:
