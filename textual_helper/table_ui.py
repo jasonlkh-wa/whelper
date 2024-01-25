@@ -7,6 +7,7 @@ from textual.app import ComposeResult
 from textual.coordinate import Coordinate
 import datetime
 import csv
+import pandas as pd
 
 
 # CR-someday: the method override for some textual built in function
@@ -92,12 +93,15 @@ class TableUI(Screen):
 
     def __init__(
         self,
-        data_path: str,
+        data_path: str | None = None,  # this prioritizes over raw_data
+        raw_data: list
+        | pd.DataFrame
+        | None = None,  # this will be overrided when data_path exists
         with_header: bool = True,
         header: list | None = None,
         name=None,
         id=None,
-        editable_cols: set | None = None,
+        editable_cols: set | None = None,  # set set("__") to disable
         column_widths: list | None = None,
         data_export_rate: int | None = None,
         col_separator: str = ",",
@@ -106,9 +110,16 @@ class TableUI(Screen):
         use_default_on_submit: bool = True,
     ):
         super().__init__(name, id)
+        if data_path and raw_data:
+            # CR-someday: raise some warning if both exists
+            pass
         self.data_path = data_path
-        self.file_type = data_path[data_path.rindex(".") + 1 :]
-        raw_data = self.parse_data_file(data_path, self.file_type)
+        self.file_type = data_path[data_path.rindex(".") + 1 :] if data_path else None
+        raw_data = (
+            self.parse_data_file(data_path, self.file_type)
+            if self.data_path
+            else self.parse_raw_data(raw_data)
+        )
         self.header = raw_data[0] if with_header else header
         self.editable_cols = editable_cols or set(self.header)
         self.data = raw_data[1:] if with_header else raw_data
@@ -131,6 +142,14 @@ class TableUI(Screen):
                 raise NotImplementedError
 
         return data
+
+    def parse_raw_data(self, raw_data: list | pd.DataFrame | None = None):
+        if raw_data is None:
+            raise ValueError("Please provide [data_path] or [raw_data]")
+        if isinstance(raw_data, pd.DataFrame):
+            return [raw_data.columns.tolist()] + raw_data.values.tolist()
+        elif isinstance(raw_data, list) and isinstance(raw_data[0], list):
+            return raw_data
 
     def compose(self) -> ComposeResult:
         yield VimDataTable(id="table", cols=self.header)
@@ -201,6 +220,7 @@ class TableUI(Screen):
         self.log_message(f"New row added successfully!")
 
     def _truncate(self, s, length=20):
+        s = str(s)
         return s[:length] + ".." if len(s) > length else s
 
     def action_delete_current_row(self):
@@ -307,17 +327,18 @@ class TableUI(Screen):
         input_field.disabled = True
 
     def export_to_data_path(self):
-        table = self.query_one("#table", VimDataTable)
-        match self.file_type:
-            case "csv":
-                with open(self.data_path, "w") as file:
-                    csv.writer(file).writerow(self.header)
-                    for idx in range(table.row_count):
-                        # this assume the new columns added must be placed after the original columns in data file
-                        row = table.get_row_at(idx)[: len(self.header)]
-                        csv.writer(file).writerow(row)
-            case _:
-                raise NotImplementedError
+        if self.data_path:
+            table = self.query_one("#table", VimDataTable)
+            match self.file_type:
+                case "csv":
+                    with open(self.data_path, "w") as file:
+                        csv.writer(file).writerow(self.header)
+                        for idx in range(table.row_count):
+                            # this assume the new columns added must be placed after the original columns in data file
+                            row = table.get_row_at(idx)[: len(self.header)]
+                            csv.writer(file).writerow(row)
+                case _:
+                    raise NotImplementedError
 
     async def action_quit(self):
         self.export_to_data_path()
