@@ -1,4 +1,3 @@
-import textual
 from textual.validation import Validator, ValidationResult
 from textual.widgets import Input
 import re
