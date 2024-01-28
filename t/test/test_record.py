@@ -1,4 +1,8 @@
-from . import create_record_type
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from record import create_record_type
 
 
 def test_create_record_type_success():

@@ -1,26 +1,40 @@
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from whelper import setup_main_logger
 import argparse
+import logging
+
 
 """
-CR: complete this section
+CR: complete this section and give example of [MainArgParser]'s 
+add_all_subparsers_from_dict(self, subparser_dict)
 Expected Usage:
+
 """
 
 
 class SubtoolParser:
-    def __init__(self, subparsers: argparse._SubParsersAction, name, description):
+    def __init__(self, name, description):
+        self.name = name
+        self.description = description
+
+    def __call__(self, subparsers: argparse._SubParsersAction):
         self.parser: argparse.ArgumentParser = subparsers.add_parser(
-            name,
-            help=description,
-            description=description,
+            self.name,
+            help=self.description,
+            description=self.description,
         )
 
-    def add_dev_mode_arg(self):
         self.parser.add_argument(
             "-dev",
             required=False,
             help="<optional> enable dev mode",
             action="store_true",
         )
+        return self.parser
 
 
 class MainArgParser:
@@ -40,10 +54,11 @@ class MainArgParser:
         subparser_description: str = "",
         subparser_name: str = "tool",
         description: str = "Select the tool to be used",
+        logger: logging.Logger | None = None,
     ):
         # Create an argument parser with the given program name and description
         self.parser = argparse.ArgumentParser(prog=prog, description=description)
-
+        self.subparser_name = subparser_name
         # Add subparsers to the argument parser
         self.subparsers = self.parser.add_subparsers(
             title=subparser_name,
@@ -52,13 +67,17 @@ class MainArgParser:
             required=True,
         )
 
-        self.subparser_dict = dict()
+        self.subparser_to_function_dict = dict()
+        self.logger = logger or setup_main_logger()
 
     def parse_args(self):
         return self.parser.parse_args()
 
-    def add_subparser(self, subparser: SubtoolParser):
-        subparser = subparser(self.subparsers)
+    def add_subparser(
+        self,
+        subparser: SubtoolParser,
+    ):
+        subparser(self.subparsers)
 
     def add_all_subparsers_from_dict(self, subparser_dict):
         """
@@ -74,4 +93,22 @@ class MainArgParser:
         """
         for name, subparser in subparser_dict.items():
             self.add_subparser(subparser["parser"])
-            self.subparser_dict[name] = subparser["function"]
+            self.subparser_to_function_dict[name] = subparser["function"]
+
+    def call_subtool(
+        self,
+        args: argparse.Namespace,
+    ):
+        if getattr(args, self.subparser_name) in self.subparser_to_function_dict.keys():
+            return self.subparser_to_function_dict.get(
+                getattr(args, self.subparser_name)
+            )(args)
+        else:
+            fail_message = (
+                f"Invalid tool argument: {getattr(args, self.subparser_name)}"
+            )
+
+            if self.logger is not None:
+                self.logger.warning(fail_message)
+            else:
+                raise ValueError(fail_message)
