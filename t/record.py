@@ -8,6 +8,7 @@ def create_record_type(record: dict[str, type], type_enforced=True):
         __doc__ = f"""{doc_string}"""
 
         def __init__(self, **kwargs):
+            self.record = record
             if type_enforced:
                 self._init_with_type_enforced(**kwargs)
             else:
@@ -18,7 +19,14 @@ def create_record_type(record: dict[str, type], type_enforced=True):
             if not record.keys() == kwargs.keys():
                 raise TypeError(f"expected:\n{record.keys()}\n\ngot:\n{kwargs.keys()}")
             for k, type_t in record.items():
-                if isinstance(kwargs[k], type_t):
+                if isinstance(type_t, set):
+                    if kwargs[k] in type_t:
+                        setattr(self, k, kwargs[k])
+                    else:
+                        raise TypeError(
+                            f"Value [{kwargs[k]}] is not one of the variants:\n\n{type_t}"
+                        )
+                elif isinstance(kwargs[k], type_t):
                     setattr(self, k, kwargs[k])
                 else:
                     try:
