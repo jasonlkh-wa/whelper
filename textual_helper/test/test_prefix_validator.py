@@ -1,8 +1,4 @@
-import os
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import prefix_enforce_validator
+import whelper.textual_helper.prefix_enforce_validator as prefix_enforce_validator
 
 
 def create_prefix_validator_without_suffix_pattern():

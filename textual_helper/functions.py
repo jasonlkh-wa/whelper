@@ -1,5 +1,5 @@
 import textual
-from .table_ui import *
+from whelper.textual_helper.table_ui import *
 
 
 def display_table(data: list[list] | pd.DataFrame):

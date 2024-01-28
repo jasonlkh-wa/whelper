@@ -1,5 +1,5 @@
-from .vim_data_table import VimDataTable, DetailCell
-from .prefix_enforce_validator import PrefixEnforceValidator
+from whelper.textual_helper.vim_data_table import VimDataTable, DetailCell
+from whelper.textual_helper.prefix_enforce_validator import PrefixEnforceValidator
 from textual.widgets import Footer, Header, Input, Log
 from textual.binding import Binding
 from textual.screen import Screen
