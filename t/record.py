@@ -1,24 +1,26 @@
 from whelper import printls
 
 
-def create_record_type(record: dict[str, type], type_enforced=True):
+def create_record_type(record: dict[str, type | set], type_enforced=True):
     doc_string = ",\n\t".join([f"{k}: {type_t}" for k, type_t in record.items()])
 
     class Record:
         __doc__ = f"""{doc_string}"""
+        RECORD = record
 
         def __init__(self, **kwargs):
-            self.record = record
             if type_enforced:
                 self._init_with_type_enforced(**kwargs)
             else:
-                for k, type_t in record.items():
+                for k in self.RECORD.keys():
                     setattr(self, k, kwargs[k])
 
         def _init_with_type_enforced(self, **kwargs):
-            if not record.keys() == kwargs.keys():
-                raise TypeError(f"expected:\n{record.keys()}\n\ngot:\n{kwargs.keys()}")
-            for k, type_t in record.items():
+            if not self.RECORD.keys() == kwargs.keys():
+                raise TypeError(
+                    f"expected:\n{self.RECORD.keys()}\n\ngot:\n{kwargs.keys()}"
+                )
+            for k, type_t in self.RECORD.items():
                 if isinstance(type_t, set):
                     if kwargs[k] in type_t:
                         setattr(self, k, kwargs[k])
