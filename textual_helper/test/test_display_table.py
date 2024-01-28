@@ -3,6 +3,7 @@ import pandas as pd
 # CR-soon: This is not optimal to import the package, as the package must be deployed
 # or else the test is running on the stale package, consider:
 # 1. add a [-dev] flag to release-whelper to publish the change to a dev venv and then test
+#    it -> This is the right way
 # 2. check the standardized way to work on package and how others import and test
 from whelper.textual_helper import display_table
 

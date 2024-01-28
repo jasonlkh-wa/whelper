@@ -1,4 +1,3 @@
-# CR-someday: Improve all the intra-package import and dependency management
 from whelper import printls
 
 
