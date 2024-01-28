@@ -14,7 +14,7 @@ def test_create_record_type_with_type_enforced():
     except TypeError:
         assert True
         return None
-
+    print("Expected TypeError not raised")
     assert False
 
 
