@@ -8,6 +8,7 @@ from textual.coordinate import Coordinate
 import datetime
 import csv
 import pandas as pd
+import json
 
 
 # CR-someday: the method override for some textual built in function
@@ -90,11 +91,12 @@ class TableUI(Screen):
         Binding(key="P", action="show_log()", description="show log", show=True),
     ]
     DELETE_MESSAGE = ":d please confirm (y/[n]): "
+    ID_COL = "ID"
 
     def __init__(
         self,
-        data_path: str | None = None,  # this prioritizes over raw_data
-        raw_data: list
+        data_path: str | None = None,  # this prioritizes over source_data
+        source_data: list
         | pd.DataFrame
         | None = None,  # this will be overrided when data_path exists
         with_header: bool = True,
@@ -108,54 +110,117 @@ class TableUI(Screen):
         enable_delete_row: bool = True,
         use_default_on_mount: bool = True,
         use_default_on_submit: bool = True,
+        ignore_index: bool = False,
+        index_col: str | None = None,
+        is_dev_for_pytest=False,
     ):
         super().__init__(name, id)
-        if data_path and raw_data:
+        # For non-json data, add a numeric index to the table
+        # For json data, ignore the top level key and use a numeric index
+        self.ignore_index = ignore_index
+        self.index_col = index_col  # Unused for now
+        if data_path and source_data:
             # CR-someday: raise some warning if both exists
             pass
         self.data_path = data_path
         self.file_type = data_path[data_path.rindex(".") + 1 :] if data_path else None
-        raw_data = (
-            self.parse_data_file(data_path, self.file_type)
-            if self.data_path
-            else self.parse_raw_data(raw_data)
+        if self.data_path is not None:
+            raw_data = self.parse_data_file(data_path, self.file_type)
+        elif source_data is not None:
+            raw_data = self.parse_source_data(source_data)
+        else:
+            raise ValueError("Please provide [data_path] or [raw_data]")
+
+        self.header = (
+            raw_data[0]
+            if with_header is not None
+            else (header if header is not None else list(range(len(raw_data[0]))))
         )
-        self.header = raw_data[0] if with_header else header
         self.editable_cols = editable_cols or set(self.header)
-        self.data = raw_data[1:] if with_header else raw_data
+        self.data = raw_data[1:] if with_header is not None else raw_data
         self.column_widths = column_widths or [None for _ in self.header]
         self.data_export_rate = data_export_rate
         self.col_separator = col_separator
         self.enable_delete_row = enable_delete_row
         self.use_default_on_mount = use_default_on_mount  # as [on_mount] method cannot be override, a bool is used to control the override
         self.use_default_on_submit = use_default_on_submit  # as [on_submit] method cannot be override, a bool is used to control the override
+        self._is_dev_for_pytest = is_dev_for_pytest  # set it to True only if this app is run by a pytest's [compare_snapshot]
+
+    def get_indexed_data_with_header(self, data: list[list[any]]):
+        indexed_data = []
+        for idx, v in enumerate(data):
+            if idx != 0:
+                indexed_data.append([idx] + v)
+            else:
+                indexed_data.append([self.ID_COL] + v)
+
+        return indexed_data
 
     def parse_data_file(self, data_path, file_type):
-        data = []
         match file_type:
             case "csv":
                 with open(data_path, "r") as file:
                     csv_reader = csv.reader(file)
-                    for row in csv_reader:
-                        data.append(row)
+
+                    return (
+                        self.get_indexed_data_with_header(csv_reader)
+                        if self.ignore_index
+                        else list(csv_reader)
+                    )
+
+            case "json":
+                # CR: missing json tabula format check (at least check the first level,
+                # for sublevel, only check when [show-detail] is clicked)
+                with open(data_path, "r") as file:
+                    json_dict: dict = json.load(file)
+                    index_col = (
+                        [self.ID_COL, "original_id"]
+                        if self.ignore_index
+                        else [self.ID_COL]
+                    )
+                    header = index_col + [k for k in list(json_dict.values())[0].keys()]
+
+                    indexed_data = []
+                    if self.ignore_index:
+                        get_indexed_row = (
+                            lambda idx, key, record: [idx] + [key] + list(record.values())
+                        )
+                    else:
+                        get_indexed_row = lambda _idx, key, record: [key] + list(
+                            record.values()
+                        )
+
+                    for idx, (key, record) in enumerate(json_dict.items()):
+                        indexed_data.append(get_indexed_row(idx, key, record))
+
+                    return [header] + indexed_data
             case _:
                 raise NotImplementedError
 
-        return data
-
-    def parse_raw_data(self, raw_data: list | pd.DataFrame | None = None):
-        if raw_data is None:
-            raise ValueError("Please provide [data_path] or [raw_data]")
-        if isinstance(raw_data, pd.DataFrame):
-            return [raw_data.columns.tolist()] + raw_data.values.tolist()
-        elif isinstance(raw_data, list) and isinstance(raw_data[0], list):
-            return raw_data
+    def parse_source_data(self, source_data: list | pd.DataFrame | None = None):
+        if isinstance(source_data, pd.DataFrame):
+            if self.ignore_index:
+                index = source_data.reset_index(drop=True).index
+                source_data = pd.concat(
+                    [pd.DataFrame(index, columns=[self.ID_COL]), source_data],
+                    axis=1,
+                    join="outer",
+                )
+            return [source_data.columns.tolist()] + source_data.values.tolist()
+        elif isinstance(source_data, list) and isinstance(source_data[0], list):
+            return (
+                self.get_indexed_data_with_header(source_data)
+                if self.ignore_index
+                else source_data
+            )
+        else:
+            raise NotImplementedError
 
     def compose(self) -> ComposeResult:
         yield VimDataTable(id="table", cols=self.header)
         yield Input(id="input_field", disabled=True)
         yield Log(id="log")
-        yield Header(show_clock=True)
+        yield Header(show_clock=True if not self._is_dev_for_pytest else False)
         yield Footer()
 
     # CR-someday: think of separating the add row function out so that
@@ -171,6 +236,7 @@ class TableUI(Screen):
             table.add_column(i, width=width, key=i)
 
         for idx, row_values in enumerate(self.data):
+            row_values = [str(i) for i in row_values]
             table.add_row(*row_values, key=idx)
 
         # Periodically export data to data_path for backup
@@ -220,7 +286,6 @@ class TableUI(Screen):
         self.log_message(f"New row added successfully!")
 
     def _truncate(self, s, length=20):
-        s = str(s)
         return s[:length] + ".." if len(s) > length else s
 
     def action_delete_current_row(self):
@@ -327,6 +392,10 @@ class TableUI(Screen):
         input_field.disabled = True
 
     def export_to_data_path(self):
+        # CR: when exporting to CSV, get the header values so that i can use [headers in self.headers]
+        # to get the index of the column to be exported and hence ignore the default optional numeric index
+        # and any new column added in run time which is not stored in the file (this could also provide
+        # more flexibility to the column ordering)
         if self.data_path:
             table = self.query_one("#table", VimDataTable)
             match self.file_type:
