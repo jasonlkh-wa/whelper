@@ -29,6 +29,11 @@ class VimDataTable(DataTable):
             list(i) for i in zip(self.cols, self.get_row_at(self.cursor_row))
         ]
 
+        # CR-soon: implement more "readable" data apart from row, e.g. list/dict in a cell
+        # dict would be the higher priority as it can be used for the json sub-level data in a cell
+        #
+        # the sub-level details should be all editable and flow back to the parent level
+
         if self.name != "ROW_DETAILS":
             self.app.push_screen(DetailRow(cursor_row_values))
 
@@ -57,6 +62,8 @@ class DetailRow(Screen):
         self.columns_width = [10, 50]
 
     def compose(self) -> ComposeResult:
+        # CR-soon: consider using TableUI and allow editable for all rows to propagate
+        # changes back to parent level
         yield VimDataTable(id="details", cols=self.cols, name="ROW_DETAILS")
         yield Header(show_clock=True)
         yield Footer()
