@@ -8,7 +8,7 @@ import os
 PWD = os.path.dirname(os.path.abspath(__file__))
 
 
-# CR: consider putting all textual test here
+# CR-soon: consider putting all textual test here (csv and json)
 def test_display_table_for_pandas_dataframe(snap_compare):
     assert snap_compare(
         os.path.join(PWD, "display_table_app_for_pandas_df.py:app_to_test")
