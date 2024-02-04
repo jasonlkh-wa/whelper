@@ -147,6 +147,7 @@ class TableUI(Screen):
         self.editable_cols = editable_cols or default_editable_cols
 
         self.data = raw_data[1:] if with_header else raw_data
+        self.return_data = None # this is not set when initialized, but later in [self.export_to_data_path]
         self.column_widths = column_widths or [None for _ in self.header]
         self.data_export_rate = data_export_rate
         self.col_separator = col_separator
@@ -428,7 +429,7 @@ class TableUI(Screen):
 
         # CR: support the export of json
         if self.data_path:
-            self.app.return_value(data)  # app return value if file path is passed
+            self.return_data = data  # app return value if file path is passed
             match self.file_type:
                 case "csv":
                     with open(self.data_path, "r") as file:
@@ -452,11 +453,11 @@ class TableUI(Screen):
             match self.source_data_type():
                 case pd.DataFrame():
                     # CR-soon: add test for the return_value
-                    self.app.return_value(pd.DataFrame(data[1:], columns=data[0]))
+                    self.return_data = pd.DataFrame(data[1:], columns=data[0])
                 case (
                     list()
                 ):  # CR-soon: make it to detect 1-level nested list (may have higher ordered nested list in the future)
-                    self.app.return_value(data)
+                    self.return_data = data
                 case _:
                     raise NotImplementedError
 
@@ -464,4 +465,4 @@ class TableUI(Screen):
         e = self.export_to_data_path()
         if isinstance(e, Exception):
             raise e
-        await self.app.action_quit()
+        self.app.exit(self.return_data)
