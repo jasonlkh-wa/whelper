@@ -109,8 +109,6 @@ class TableUI(Screen):
         data_export_rate: int | None = None,  # in seconds
         col_separator: str = ",",
         enable_delete_row: bool = True,
-        use_default_on_mount: bool = True,
-        use_default_on_submit: bool = True,
         ignore_index: bool = False,
         index_col: str | None = None,
         is_dev_for_pytest=False,
@@ -119,19 +117,20 @@ class TableUI(Screen):
         # For non-json data, add a numeric index to the table
         # For json data, ignore the top level key and use a numeric index
 
-        # CR: it is a bit sad to have ignore_index at the top, think about how to move it down
-        # without breaking the app
-        self.ignore_index = ignore_index
-        self.index_col = index_col  # Unused for now
         if data_path and source_data:
             # CR-someday: raise some warning if both exists
             pass
         self.data_path = data_path
-        self.file_type = data_path[data_path.rindex(".") + 1 :] if data_path else None
+        self.file_type = (
+            data_path[data_path.rindex(".") + 1 :] if data_path is not None else None
+        )
+        self.source_data_type = type(source_data) if source_data is not None else None
         if self.data_path is not None:
-            raw_data = self.parse_data_file(data_path, self.file_type)
+            raw_data = self.parse_data_file(
+                data_path, self.file_type, ignore_index=ignore_index
+            )
         elif source_data is not None:
-            raw_data = self.parse_source_data(source_data)
+            raw_data = self.parse_source_data(source_data, ignore_index=ignore_index)
         else:
             raise ValueError("Please provide [data_path] or [raw_data]")
 
@@ -142,7 +141,7 @@ class TableUI(Screen):
         )
 
         default_editable_cols = set(self.header)
-        if self.ignore_index:
+        if ignore_index:
             default_editable_cols.remove(self.ID_COL)
 
         self.editable_cols = editable_cols or default_editable_cols
@@ -152,8 +151,8 @@ class TableUI(Screen):
         self.data_export_rate = data_export_rate
         self.col_separator = col_separator
         self.enable_delete_row = enable_delete_row
-        self.use_default_on_mount = use_default_on_mount  # as [on_mount] method cannot be override, a bool is used to control the override
-        self.use_default_on_submit = use_default_on_submit  # as [on_submit] method cannot be override, a bool is used to control the override
+        self.ignore_index = ignore_index
+        self.index_col = index_col  # Unused for now
         self._is_dev_for_pytest = is_dev_for_pytest  # set it to True only if this app is run by a pytest's [compare_snapshot]
 
     def get_indexed_data_with_header(self, data: list[list[any]]):
@@ -166,7 +165,7 @@ class TableUI(Screen):
 
         return indexed_data
 
-    def parse_data_file(self, data_path, file_type):
+    def parse_data_file(self, data_path, file_type, ignore_index=False):
         match file_type:
             case "csv":
                 with open(data_path, "r") as file:
@@ -174,7 +173,7 @@ class TableUI(Screen):
 
                     return (
                         self.get_indexed_data_with_header(csv_reader)
-                        if self.ignore_index
+                        if ignore_index
                         else list(csv_reader)
                     )
 
@@ -184,14 +183,12 @@ class TableUI(Screen):
                 with open(data_path, "r") as file:
                     json_dict: dict = json.load(file)
                     index_col = (
-                        [self.ID_COL, "original_id"]
-                        if self.ignore_index
-                        else [self.ID_COL]
+                        [self.ID_COL, "original_id"] if ignore_index else [self.ID_COL]
                     )
                     header = index_col + [k for k in list(json_dict.values())[0].keys()]
 
                     indexed_data = []
-                    if self.ignore_index:
+                    if ignore_index:
                         get_indexed_row = (
                             lambda idx, key, record: [idx]
                             + [key]
@@ -209,11 +206,11 @@ class TableUI(Screen):
             case _:
                 raise NotImplementedError
 
-    def parse_source_data(self, source_data: list | pd.DataFrame | None = None):
-        # CR: if [source_data] is used instead of file path, the function should return the value
-        # as the same type with edited values
+    def parse_source_data(
+        self, source_data: list | pd.DataFrame | None = None, ignore_index=False
+    ):
         if isinstance(source_data, pd.DataFrame):
-            if self.ignore_index:
+            if ignore_index:
                 index = source_data.reset_index(drop=True).index
                 source_data = pd.concat(
                     [pd.DataFrame(index, columns=[self.ID_COL]), source_data],
@@ -224,7 +221,7 @@ class TableUI(Screen):
         elif isinstance(source_data, list) and isinstance(source_data[0], list):
             return (
                 self.get_indexed_data_with_header(source_data)
-                if self.ignore_index
+                if ignore_index
                 else source_data
             )
         else:
@@ -241,9 +238,6 @@ class TableUI(Screen):
     # users can easily amend the [on_mount], refer to [cli-tools/tood]
     # when changing the function
     def on_mount(self) -> None:
-        if not self.use_default_on_mount:
-            return None
-
         table = self.query_one("#table", VimDataTable)
 
         for i, width in zip(self.header, self.column_widths):
@@ -386,9 +380,9 @@ class TableUI(Screen):
     # CR-someday: think of a better way for users to easily add new condiion
     # to the function instead of overriding the whole function,
     # a dict with [pattern:function] may help
-    def on_input_submitted(self):
-        if not self.use_default_on_submit:
-            return None
+    def on_input_submitted(
+        self,
+    ):
 
         input_field = self.query_one("#input_field", Input)
         if input_field.value.startswith(":a "):
@@ -405,42 +399,64 @@ class TableUI(Screen):
         input_field.value = ""
         input_field.disabled = True
 
-    def export_to_data_path(self):
+    def get_data_as_nested_list(self):
+        res = []
+
         # this is the header defined by the file in [self.header] with ["ID"]
         # removed as it is generated by this class
+        table = self.query_one("#table", VimDataTable)
         header_without_numeric_index = copy.deepcopy(self.header)
+
         if self.ignore_index:
             header_without_numeric_index.pop(
                 header_without_numeric_index.index(self.ID_COL)
             )
 
+        res.append(header_without_numeric_index)
+
         value_idx_to_be_exported = [
             self.header.index(i) for i in header_without_numeric_index
         ]  # although [1:] can also remove the ID column, this impl would potentially provide more flexibility for the future
+        for idx in range(table.row_count):
+            row = table.get_row_at(idx)
+            res.append([row[i] for i in value_idx_to_be_exported])
+
+        return res
+
+    def export_to_data_path(self):
+        data = self.get_data_as_nested_list()
+
         # CR: support the export of json
         if self.data_path:
-            table = self.query_one("#table", VimDataTable)
+            self.app.return_value(data)  # app return value if file path is passed
             match self.file_type:
                 case "csv":
                     with open(self.data_path, "r") as file:
                         original_data = list(csv.reader(file))
                     try:
                         with open(self.data_path, "w") as file:
-                            csv.writer(file).writerow(header_without_numeric_index)
-                            for idx in range(table.row_count):
-                                # this assume the new columns added must be placed after the original columns in data file
-                                row = table.get_row_at(idx)
-                                row_to_be_exported = [
-                                    row[i] for i in value_idx_to_be_exported
-                                ]
-                                csv.writer(file).writerow(row_to_be_exported)
+                            for row in data:
+                                csv.writer(file).writerow(row)
+
                         self.log_message("Data auto-saved successfully!")
+
                     except Exception as e:
                         with open(self.data_path, "w") as file:
                             csv.writer(file).writerows(original_data)
                         error_message = "Error occured while saving data, nothing done!"
                         self.log_message(error_message)
                         return e
+                case _:
+                    raise NotImplementedError
+        elif self.source_data_type is None:  # source_data is used
+            match self.source_data_type():
+                case pd.DataFrame():
+                    # CR-soon: add test for the return_value
+                    self.app.return_value(pd.DataFrame(data[1:], columns=data[0]))
+                case (
+                    list()
+                ):  # CR-soon: make it to detect 1-level nested list (may have higher ordered nested list in the future)
+                    self.app.return_value(data)
                 case _:
                     raise NotImplementedError
 
