@@ -10,32 +10,13 @@ import csv
 import pandas as pd
 import json
 import copy
-
-
-# CR-someday: the method override for some textual built in function
-# does not work well, e.g. when [on_mount] is overrided in a new class,
-# textual will call both [TableUI.on_mount] and [NewClass.on_mount]
-#
-# One of the temporary solution is to think of a way to easily edit the
-# [on_mount] and [on_input_submit] method.
-#
-# For [on_mount], the user would edit the function because they may want to
-# 1. preprocess the data before adding it
-# 2. add some custom columns apart from the columns from data source
-#
-# For [on_input_submit], the function can be refactored so that the user can
-# have custom dictionary to match [pattern:function] for the function
-#
-# please consider separating these functions in two part, one part is the
-# [on_mount]/[on_input_submit] which should not be overrided
-# (consider checking if the user define these two methods, raise a warning for that)
-# and the other part is method that hold some preprocessing/custom column definition/
-# [pattern:function] matching
+import ast
 
 
 # CR-someday: It is a know issue that "[n]" or alphabets with square brackets are unable to display.
 # This is due to the textual library recognizing them as the terminal control sequences.
 class TableUI(Screen):
+    # CR-soon: docstring
     DEFAULT_CSS = """
     TablueUI {
         align: left top;
@@ -101,7 +82,7 @@ class TableUI(Screen):
             list | pd.DataFrame | None
         ) = None,  # this will be overrided when data_path exists
         with_header: bool = True,
-        header: list | None = None,
+        header: list | None = None,  # header, only valid when with_header is False
         name=None,
         id=None,
         editable_cols: set | None = None,  # set set("__") to disable
@@ -147,7 +128,7 @@ class TableUI(Screen):
         self.editable_cols = editable_cols or default_editable_cols
 
         self.data = raw_data[1:] if with_header else raw_data
-        self.return_data = None # this is not set when initialized, but later in [self.export_to_data_path]
+        self.return_data = None  # this is not set when initialized, but later in [self.export_to_data_path]
         self.column_widths = column_widths or [None for _ in self.header]
         self.data_export_rate = data_export_rate
         self.col_separator = col_separator
@@ -179,8 +160,7 @@ class TableUI(Screen):
                     )
 
             case "json":
-                # CR: missing json tabula format check (at least check the first level,
-                # for sublevel, only check when [show-detail] is clicked)
+                # CR-someday: add testing for the tabula validation
                 with open(data_path, "r") as file:
                     json_dict: dict = json.load(file)
                     index_col = (
@@ -201,7 +181,13 @@ class TableUI(Screen):
                         )
 
                     for idx, (key, record) in enumerate(json_dict.items()):
-                        indexed_data.append(get_indexed_row(idx, key, record))
+                        row = get_indexed_row(idx, key, record)
+                        if len(row) == len(header):
+                            indexed_data.append(row)
+                        else:
+                            raise ValueError(
+                                f"Data is not in tabula format. Header length: {len(header)}, row length at {idx}: {len(row)}"
+                            )
 
                     return [header] + indexed_data
             case _:
@@ -422,21 +408,22 @@ class TableUI(Screen):
             row = table.get_row_at(idx)
             res.append([row[i] for i in value_idx_to_be_exported])
 
-        return res
+        return header_without_numeric_index, res
 
     def export_to_data_path(self):
-        data = self.get_data_as_nested_list()
-
+        header, data_with_header = self.get_data_as_nested_list()
         # CR: support the export of json
         if self.data_path:
-            self.return_data = data  # app return value if file path is passed
+            self.return_data = (
+                data_with_header  # app return value if file path is passed
+            )
             match self.file_type:
                 case "csv":
                     with open(self.data_path, "r") as file:
                         original_data = list(csv.reader(file))
                     try:
                         with open(self.data_path, "w") as file:
-                            for row in data:
+                            for row in data_with_header:
                                 csv.writer(file).writerow(row)
 
                         self.log_message("Data auto-saved successfully!")
@@ -444,20 +431,61 @@ class TableUI(Screen):
                     except Exception as e:
                         with open(self.data_path, "w") as file:
                             csv.writer(file).writerows(original_data)
-                        error_message = "Error occured while saving data, nothing done!"
+                        error_message = (
+                            f"Error occured while saving data, nothing done! {e}"
+                        )
                         self.log_message(error_message)
                         return e
+                case "json":
+                    # CR-someday: consider not hard-coding the index as 0 for future scalability
+                    # CR: this should be tested carefully
+                    header = (
+                        header[1:] if self.ignore_index else header
+                    )  # header[1:] is "original_index"
+                    data_without_header = data_with_header[1:]
+                    data_dict = {
+                        row[0]: {k: v for k, v in zip(header, row[1:])}
+                        for row in data_without_header
+                    }
+                    for idx, record in data_dict.items():
+                        for k, v in record.items():
+                            if v and v[0] == "{":
+                                data_dict[idx][k] = json.loads(v.replace("'", '"'))
+                            else:
+                                try:
+                                    data_dict[idx][k] = ast.literal_eval(v)
+                                except ValueError:
+                                    pass
+
+                    with open(self.data_path, "r") as file:
+                        original_data = json.load(file)
+
+                    try:
+                        with open(self.data_path, "w") as file:
+                            json.dump(data_dict, file, indent=4)
+                    except Exception as e:
+                        with open(self.data_path, "w") as file:
+                            json.dump(original_data, file, indent=4)
+
+                        error_message = (
+                            f"Error occured while saving data, nothing done! {e}"
+                        )
+                        self.log_message(error_message)
+                        return e
+
                 case _:
                     raise NotImplementedError
         elif self.source_data_type is None:  # source_data is used
             match self.source_data_type():
                 case pd.DataFrame():
                     # CR-soon: add test for the return_value
-                    self.return_data = pd.DataFrame(data[1:], columns=data[0])
+                    self.return_data = pd.DataFrame(
+                        data_with_header[1:], columns=data_with_header[0]
+                    )
                 case (
                     list()
                 ):  # CR-soon: make it to detect 1-level nested list (may have higher ordered nested list in the future)
-                    self.return_data = data
+                    self.return_data = data_with_header
                 case _:
                     raise NotImplementedError
 
