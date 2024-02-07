@@ -17,6 +17,7 @@ import ast
 # This is due to the textual library recognizing them as the terminal control sequences.
 class TableUI(Screen):
     # CR-soon: docstring
+    # CR-someday: there is some issue to the horizontal scroll bar outlook
     DEFAULT_CSS = """
     TablueUI {
         align: left top;
@@ -57,8 +58,9 @@ class TableUI(Screen):
     }
     """
     BINDINGS = [
-        ("q", "quit()", "Quit"),
-        (":", "command_palette", "Command Palette"),
+        Binding("q", action="quit()", description="Quit", key_display="q"),
+        Binding("f1", action="show_bindings()", description="Show bindings"),
+        Binding(":", action="command_palette", description="Command Palette"),
         Binding(key="A", action="add_row()", description="Add row", show=True),
         Binding(
             key="escape",
@@ -70,7 +72,13 @@ class TableUI(Screen):
             key="D", action="delete_current_row()", description="Delete", show=True
         ),
         Binding(key="E", action="edit_cell()", description="Edit", show=True),
-        Binding(key="P", action="show_log()", description="show log", show=True),
+        Binding(
+            key="P",
+            action="show_log()",
+            description="show log",
+            show=True,
+            key_display="p",
+        ),
     ]
     DELETE_MESSAGE = ":d please confirm (y/[n]): "
     ID_COL = "ID"
@@ -332,6 +340,13 @@ class TableUI(Screen):
         self.app.push_screen(DetailCell(log.lines))
         log.clear()
 
+    def action_show_bindings(self):
+        self.app.push_screen(
+            DetailCell(
+                [f"{binding.key}: {binding.description}" for binding in self.BINDINGS]
+            )
+        )
+
     def edit_cell(self, message: str, validate=None):
         table = self.query_one("#table", VimDataTable)
         # parse the coordinate to edit
@@ -412,7 +427,7 @@ class TableUI(Screen):
 
     def export_to_data_path(self):
         header, data_with_header = self.get_data_as_nested_list()
-        # CR: support the export of json
+
         if self.data_path:
             self.return_data = (
                 data_with_header  # app return value if file path is passed
@@ -438,7 +453,7 @@ class TableUI(Screen):
                         return e
                 case "json":
                     # CR-someday: consider not hard-coding the index as 0 for future scalability
-                    # CR: this should be tested carefully
+                    # CR-soon: this should be tested carefully
                     header = (
                         header[1:] if self.ignore_index else header
                     )  # header[1:] is "original_index"
