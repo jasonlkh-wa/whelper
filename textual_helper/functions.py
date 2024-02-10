@@ -5,7 +5,7 @@ from whelper.textual_helper.table_ui import *
 def display_table(
     data_or_path: list[list] | pd.DataFrame | str, is_dev_for_pytest=False
 ):
-    """Display the data in a textual table."""
+    """Display the data in a textual table as read-only"""
 
     class TableDisplay(textual.app.App):
         BINDINGS = [
