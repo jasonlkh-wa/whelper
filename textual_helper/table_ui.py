@@ -12,7 +12,8 @@ import json
 import copy
 import ast
 
-
+# CR: need a way to parser dictionary, should be similar to json
+# CR: support parsing [Record]
 # CR-someday: It is a know issue that "[n]" or alphabets with square brackets are unable to display.
 # This is due to the textual library recognizing them as the terminal control sequences.
 class TableUI(Screen):
@@ -100,6 +101,7 @@ class TableUI(Screen):
         enable_delete_row: bool = True,
         ignore_index: bool = False,
         index_col: str | None = None,
+        is_export_data: bool = True,
         is_dev_for_pytest=False,
     ):
         super().__init__(name, id)
@@ -143,6 +145,7 @@ class TableUI(Screen):
         self.enable_delete_row = enable_delete_row
         self.ignore_index = ignore_index
         self.index_col = index_col  # Unused for now
+        self.is_export_data = is_export_data
         self._is_dev_for_pytest = is_dev_for_pytest  # set it to True only if this app is run by a pytest's [compare_snapshot]
 
     def get_indexed_data_with_header(self, data: list[list[any]]):
@@ -426,12 +429,16 @@ class TableUI(Screen):
         return header_without_numeric_index, res
 
     def export_to_data_path(self):
+        # CR: all export should try to eval the value, or may store the original type?
         header, data_with_header = self.get_data_as_nested_list()
 
         if self.data_path:
             self.return_data = (
                 data_with_header  # app return value if file path is passed
             )
+            if not self.is_export_data:
+                return None
+
             match self.file_type:
                 case "csv":
                     with open(self.data_path, "r") as file:
@@ -469,7 +476,7 @@ class TableUI(Screen):
                             else:
                                 try:
                                     data_dict[idx][k] = ast.literal_eval(v)
-                                except ValueError:
+                                except (SyntaxError, ValueError):
                                     pass
 
                     with open(self.data_path, "r") as file:
