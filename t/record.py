@@ -1,7 +1,6 @@
 from whelper import raisels
 
 
-# CR: add a way to define type converter
 def create_record_type(
     record: dict[str, type | set],
     type_enforced=True,
