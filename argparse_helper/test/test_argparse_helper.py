@@ -16,15 +16,11 @@ def create_SubtoolParser(main_parser):
 
 
 def create_subparser_dict():
+    subparser1 = SubtoolParser("subparser1", "show True if dev mode is ON")
+    subparser2 = SubtoolParser("subparser2", "show True if dev mode is OFF")
     return {
-        "subparser1": {
-            "parser": SubtoolParser("subparser1", "show True if dev mode is ON"),
-            "function": lambda args: args.dev,
-        },
-        "subparser2": {
-            "parser": SubtoolParser("subparser2", "show True if dev mode is OFF"),
-            "function": lambda args: not args.dev,
-        },
+        subparser1: lambda args: args.dev,
+        subparser2: lambda args: not args.dev,
     }
 
 
@@ -44,20 +40,12 @@ def test_SubtoolParser():
     assert subparser
 
 
-def test_MainArgParser_add_subparser():
-    main_parser = create_MainParser()
-    subparser = create_SubtoolParser(main_parser)
-    main_parser.add_subparser(subparser)
-
-    assert main_parser
-
-
 def test_MainArgParser_add_all_subparsers_from_dict():
     main_parser = create_MainParser()
     subparser_dict = create_subparser_dict()
     main_parser.add_all_subparsers_from_dict(subparser_dict)
 
-    assert main_parser.subparser_to_function_dict
+    assert main_parser.subparser_name_to_function_dict
 
 
 def test_MainArgParser_call_subtool():

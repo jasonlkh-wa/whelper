@@ -10,7 +10,7 @@ def test_create_record_type_success():
     assert create_record_type({"a": int, "b": str})
 
 
-def test_create_record_type_with_type_enforced():
+def test_create_record_type_with_type_enforced_and_wrong_type():
     # Testing creation of record type with type enforcement
     Type = create_record_type({"a": int, "b": str})
     try:
@@ -32,7 +32,7 @@ def test_create_record_type_print():
     assert (
         str(Type(a=1, b="2"))
         == """Record = {
-    a: <class 'int'>,
-    b: <class 'str'>
-    }"""
+    a: 1,
+    b: 2
+}"""
     )

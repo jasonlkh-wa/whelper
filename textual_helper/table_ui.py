@@ -12,6 +12,7 @@ import json
 import copy
 import ast
 
+
 # CR: need a way to parser dictionary, should be similar to json
 # CR: support parsing [Record]
 # CR-someday: It is a know issue that "[n]" or alphabets with square brackets are unable to display.
@@ -86,10 +87,7 @@ class TableUI(Screen):
 
     def __init__(
         self,
-        data_path: str | None = None,  # this prioritizes over source_data
-        source_data: (
-            list | pd.DataFrame | None
-        ) = None,  # this will be overrided when data_path exists
+        data_or_path: str | list | pd.DataFrame | None = None,
         with_header: bool = True,
         header: list | None = None,  # header, only valid when with_header is False
         name=None,
@@ -105,25 +103,16 @@ class TableUI(Screen):
         is_dev_for_pytest=False,
     ):
         super().__init__(name, id)
-        # For non-json data, add a numeric index to the table
-        # For json data, ignore the top level key and use a numeric index
 
-        if data_path and source_data:
-            # CR-someday: raise some warning if both exists
-            pass
-        self.data_path = data_path
+        self.data_or_path = data_or_path
+        self.is_path = isinstance(data_or_path, str)
         self.file_type = (
-            data_path[data_path.rindex(".") + 1 :] if data_path is not None else None
+            data_or_path[data_or_path.rindex(".") + 1 :] if self.is_path else None
         )
-        self.source_data_type = type(source_data) if source_data is not None else None
-        if self.data_path is not None:
-            raw_data = self.parse_data_file(
-                data_path, self.file_type, ignore_index=ignore_index
-            )
-        elif source_data is not None:
-            raw_data = self.parse_source_data(source_data, ignore_index=ignore_index)
-        else:
-            raise ValueError("Please provide [data_path] or [raw_data]")
+        self.source_data_type = type(data_or_path) if not self.is_path else None
+        self.ignore_index = ignore_index
+
+        raw_data = self.parse_data_or_path()
 
         self.header = (
             raw_data[0]
@@ -143,7 +132,6 @@ class TableUI(Screen):
         self.data_export_rate = data_export_rate
         self.col_separator = col_separator
         self.enable_delete_row = enable_delete_row
-        self.ignore_index = ignore_index
         self.index_col = index_col  # Unused for now
         self.is_export_data = is_export_data
         self._is_dev_for_pytest = is_dev_for_pytest  # set it to True only if this app is run by a pytest's [compare_snapshot]
@@ -158,72 +146,76 @@ class TableUI(Screen):
 
         return indexed_data
 
-    def parse_data_file(self, data_path, file_type, ignore_index=False):
-        match file_type:
-            case "csv":
-                with open(data_path, "r") as file:
-                    csv_reader = csv.reader(file)
+    def parse_data_or_path(self):
+        if self.is_path:
+            match self.file_type:
+                case "csv":
+                    with open(self.data_or_path, "r") as file:
+                        csv_reader = csv.reader(file)
 
-                    return (
-                        self.get_indexed_data_with_header(csv_reader)
-                        if ignore_index
-                        else list(csv_reader)
-                    )
-
-            case "json":
-                # CR-someday: add testing for the tabula validation
-                with open(data_path, "r") as file:
-                    json_dict: dict = json.load(file)
-                    index_col = (
-                        [self.ID_COL, "original_id"] if ignore_index else [self.ID_COL]
-                    )
-                    header = index_col + [k for k in list(json_dict.values())[0].keys()]
-
-                    indexed_data = []
-                    if ignore_index:
-                        get_indexed_row = (
-                            lambda idx, key, record: [idx]
-                            + [key]
-                            + list(record.values())
-                        )
-                    else:
-                        get_indexed_row = lambda _idx, key, record: [key] + list(
-                            record.values()
+                        return (
+                            self.get_indexed_data_with_header(csv_reader)
+                            if self.ignore_index
+                            else list(csv_reader)
                         )
 
-                    for idx, (key, record) in enumerate(json_dict.items()):
-                        row = get_indexed_row(idx, key, record)
-                        if len(row) == len(header):
-                            indexed_data.append(row)
+                case "json":
+                    # CR-someday: add testing for the tabula validation
+                    with open(self.data_or_path, "r") as file:
+                        json_dict: dict = json.load(file)
+                        index_col = (
+                            [self.ID_COL, "original_id"]
+                            if self.ignore_index
+                            else [self.ID_COL]
+                        )
+                        header = index_col + [
+                            k for k in list(json_dict.values())[0].keys()
+                        ]
+
+                        indexed_data = []
+                        if self.ignore_index:
+                            get_indexed_row = (
+                                lambda idx, key, record: [idx]
+                                + [key]
+                                + list(record.values())
+                            )
                         else:
-                            raise ValueError(
-                                f"Data is not in tabula format. Header length: {len(header)}, row length at {idx}: {len(row)}"
+                            get_indexed_row = lambda _idx, key, record: [key] + list(
+                                record.values()
                             )
 
-                    return [header] + indexed_data
-            case _:
-                raise NotImplementedError
+                        for idx, (key, record) in enumerate(json_dict.items()):
+                            row = get_indexed_row(idx, key, record)
+                            if len(row) == len(header):
+                                indexed_data.append(row)
+                            else:
+                                raise ValueError(
+                                    f"Data is not in tabula format. Header length: {len(header)}, row length at {idx}: {len(row)}"
+                                )
 
-    def parse_source_data(
-        self, source_data: list | pd.DataFrame | None = None, ignore_index=False
-    ):
-        if isinstance(source_data, pd.DataFrame):
-            if ignore_index:
-                index = source_data.reset_index(drop=True).index
-                source_data = pd.concat(
-                    [pd.DataFrame(index, columns=[self.ID_COL]), source_data],
-                    axis=1,
-                    join="outer",
-                )
-            return [source_data.columns.tolist()] + source_data.values.tolist()
-        elif isinstance(source_data, list) and isinstance(source_data[0], list):
-            return (
-                self.get_indexed_data_with_header(source_data)
-                if ignore_index
-                else source_data
-            )
+                        return [header] + indexed_data
+                case _:
+                    raise NotImplementedError
         else:
-            raise NotImplementedError
+            if isinstance(self.data_or_path, pd.DataFrame):
+                if self.ignore_index:
+                    index = self.data_or_path.reset_index(drop=True).index
+                    df = pd.concat(
+                        [pd.DataFrame(index, columns=[self.ID_COL]), self.data_or_path],
+                        axis=1,
+                        join="outer",
+                    )
+                return [df.columns.tolist()] + df.values.tolist()
+            elif isinstance(self.data_or_path, list) and isinstance(
+                self.data_or_path[0], list
+            ):
+                return (
+                    self.get_indexed_data_with_header(self.data_or_path)
+                    if self.ignore_index
+                    else self.data_or_path
+                )
+            else:
+                raise NotImplementedError
 
     def compose(self) -> ComposeResult:
         yield VimDataTable(id="table", cols=self.header)
@@ -432,26 +424,26 @@ class TableUI(Screen):
         # CR: all export should try to eval the value, or may store the original type?
         header, data_with_header = self.get_data_as_nested_list()
 
-        if self.data_path:
+        if self.is_path:
             self.return_data = (
                 data_with_header  # app return value if file path is passed
             )
             if not self.is_export_data:
                 return None
-
+        # CR-soon: may be separate the file_path vs source data handling to two functions
             match self.file_type:
                 case "csv":
-                    with open(self.data_path, "r") as file:
+                    with open(self.data_or_path, "r") as file:
                         original_data = list(csv.reader(file))
                     try:
-                        with open(self.data_path, "w") as file:
+                        with open(self.data_or_path, "w") as file:
                             for row in data_with_header:
                                 csv.writer(file).writerow(row)
 
                         self.log_message("Data auto-saved successfully!")
 
                     except Exception as e:
-                        with open(self.data_path, "w") as file:
+                        with open(self.data_or_path, "w") as file:
                             csv.writer(file).writerows(original_data)
                         error_message = (
                             f"Error occured while saving data, nothing done! {e}"
@@ -479,14 +471,14 @@ class TableUI(Screen):
                                 except (SyntaxError, ValueError):
                                     pass
 
-                    with open(self.data_path, "r") as file:
+                    with open(self.data_or_path, "r") as file:
                         original_data = json.load(file)
 
                     try:
-                        with open(self.data_path, "w") as file:
+                        with open(self.data_or_path, "w") as file:
                             json.dump(data_dict, file, indent=4)
                     except Exception as e:
-                        with open(self.data_path, "w") as file:
+                        with open(self.data_or_path, "w") as file:
                             json.dump(original_data, file, indent=4)
 
                         error_message = (
@@ -497,7 +489,7 @@ class TableUI(Screen):
 
                 case _:
                     raise NotImplementedError
-        elif self.source_data_type is None:  # source_data is used
+        else:  # source_data is used
             match self.source_data_type():
                 case pd.DataFrame():
                     # CR-soon: add test for the return_value

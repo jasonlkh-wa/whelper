@@ -2,7 +2,9 @@ import textual
 from whelper.textual_helper.table_ui import *
 
 
-def display_table(data: list[list] | pd.DataFrame, is_dev_for_pytest=False):
+def display_table(
+    data_or_path: list[list] | pd.DataFrame | str, is_dev_for_pytest=False
+):
     """Display the data in a textual table."""
 
     class TableDisplay(textual.app.App):
@@ -15,12 +17,13 @@ def display_table(data: list[list] | pd.DataFrame, is_dev_for_pytest=False):
         def push_table(self):
             self.push_screen(
                 TableUI(
-                    source_data=data,
+                    data_or_path=data_or_path,
                     id="table",
                     enable_delete_row=False,
                     editable_cols=set("__"),
                     ignore_index=True,
                     is_dev_for_pytest=is_dev_for_pytest,
+                    is_export_data=False,
                 )
             )
 

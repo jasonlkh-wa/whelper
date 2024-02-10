@@ -17,6 +17,7 @@ def create_record_type(
                 self.type_caster_dict = (
                     type_caster_dict if type_caster_dict is not None else dict()
                 )
+
                 self._init_with_type_enforced(**kwargs)
             else:
                 for k in self.RECORD.keys():
@@ -43,7 +44,9 @@ def create_record_type(
 
                 else:
                     try:
-                        setattr(self, k, type_caster_dict.get(k, type_t)(kwargs[k]))
+                        setattr(
+                            self, k, self.type_caster_dict.get(k, type_t)(kwargs[k])
+                        )
                     except (TypeError, ValueError):
                         raisels(
                             TypeError,

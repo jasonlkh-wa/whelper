@@ -110,7 +110,7 @@ class DetailCell(Screen):
         # The issue also exists in VimDataTable's main table, but users may want to
         # style through the control sequences and do not expect the sequences to be a
         # frequent issue in csv. Hence, they are not currently handled
-        self.values = [i.replace("[", "\[") for i in values]
+        self.values = [i.replace("[", "\\[") for i in values]
 
     def compose(self) -> ComposeResult:
         yield Label(
