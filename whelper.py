@@ -130,10 +130,21 @@ def investigate(x):
     printls(f"type: {type(x)}\nvalue:\n {x=}")
 
 
-def printls(x: str, n=50):
-    """Print a line separator followed by the input string and another line separator."""
+def add_line_separator(s: str, n=None):
+    if n is None:
+        n = shutil.get_terminal_size().columns
     line_separator = "-" * n
-    print(f"{line_separator}\n{x}\n{line_separator}")
+    return f"{line_separator}\n{s}\n{line_separator}"
+
+
+def printls(s: str, n=None):
+    """Print a line separator followed by the input string and another line separator."""
+    print(add_line_separator(s, n=n))
+
+
+def raisels(error: Exception, s: str, n=None):
+    printls(error.__name__, n=n)
+    raise error("\n" + add_line_separator(s, n=n))
 
 
 def backup_file_with_timestamp(file, backup_dir):
