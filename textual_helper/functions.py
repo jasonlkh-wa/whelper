@@ -3,7 +3,9 @@ from whelper.textual_helper.table_ui import *
 
 
 def display_table(
-    data_or_path: list[list] | pd.DataFrame | str, is_dev_for_pytest=False
+    data_or_path: list[list] | pd.DataFrame | str,
+    is_dev_for_pytest=False,
+    ignore_index=True,
 ):
     """Display the data in a textual table as read-only"""
 
@@ -21,7 +23,7 @@ def display_table(
                     id="table",
                     enable_delete_row=False,
                     editable_cols=set("__"),
-                    ignore_index=True,
+                    ignore_index=ignore_index,
                     is_dev_for_pytest=is_dev_for_pytest,
                     is_export_data=False,
                 )

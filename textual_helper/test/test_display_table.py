@@ -19,3 +19,7 @@ def test_display_table_for_nested_list(snap_compare):
     assert snap_compare(
         os.path.join(PWD, "display_table_app_for_nested_list.py:app_to_test")
     )
+
+
+def test_display_table_for_dict(snap_compare):
+    assert snap_compare(os.path.join(PWD, "display_table_app_for_dict.py:app_to_test"))

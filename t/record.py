@@ -1,6 +1,10 @@
 from whelper import raisels
 
 
+class Record:
+    pass
+
+
 def create_record_type(
     record: dict[str, type | set],
     type_enforced=True,
@@ -8,7 +12,7 @@ def create_record_type(
 ):
     doc_string = ",\n\t".join([f"{k}: {type_t}" for k, type_t in record.items()])
 
-    class Record:
+    class _Record(Record):
         __doc__ = f"""{doc_string}"""
         RECORD = record
 
@@ -64,4 +68,4 @@ def create_record_type(
             )
             return f"{class_name} = {{\n\t{body}\n}}".expandtabs(4)
 
-    return Record
+    return _Record

@@ -31,7 +31,7 @@ def test_create_record_type_print():
     Type = create_record_type({"a": int, "b": str})
     assert (
         str(Type(a=1, b="2"))
-        == """Record = {
+        == """_Record = {
     a: 1,
     b: 2
 }"""

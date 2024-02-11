@@ -1,5 +1,6 @@
 from whelper.textual_helper.vim_data_table import VimDataTable, DetailCell
 from whelper.textual_helper.prefix_enforce_validator import PrefixEnforceValidator
+from whelper.t.record import Record
 from textual.widgets import Footer, Header, Input, Log
 from textual.binding import Binding
 from textual.screen import Screen
@@ -13,8 +14,6 @@ import copy
 import ast
 
 
-# CR: need a way to parser dictionary, should be similar to json
-# CR: support parsing [Record]
 # CR-someday: It is a know issue that "[n]" or alphabets with square brackets are unable to display.
 # This is due to the textual library recognizing them as the terminal control sequences.
 class TableUI(Screen):
@@ -84,10 +83,13 @@ class TableUI(Screen):
     ]
     DELETE_MESSAGE = ":d please confirm (y/[n]): "
     ID_COL = "ID"
+    ORIGINAL_ID_COL = "Original_ID"
 
     def __init__(
         self,
-        data_or_path: str | list | pd.DataFrame | None = None,
+        data_or_path: (
+            str | list[list[any]] | pd.DataFrame | dict[dict[any, any]] | None
+        ) = None,
         with_header: bool = True,
         header: list | None = None,  # header, only valid when with_header is False
         name=None,
@@ -136,7 +138,9 @@ class TableUI(Screen):
         self.is_export_data = is_export_data
         self._is_dev_for_pytest = is_dev_for_pytest  # set it to True only if this app is run by a pytest's [compare_snapshot]
 
-    def get_indexed_data_with_header(self, data: list[list[any]]):
+    def get_indexed_nested_list_data_with_header(
+        self, data: list[list[any]]
+    ) -> list[list[any]]:
         indexed_data = []
         for idx, v in enumerate(data):
             if idx != 0:
@@ -146,7 +150,35 @@ class TableUI(Screen):
 
         return indexed_data
 
+    def parse_dict_to_nested_list_data_with_header(
+        self, data_dict: dict
+    ) -> list[list[any]]:
+        index_col = (
+            [self.ID_COL, self.ORIGINAL_ID_COL] if self.ignore_index else [self.ID_COL]
+        )
+        header = index_col + [k for k in list(data_dict.values())[0].keys()]
+
+        indexed_data = []
+        if self.ignore_index:
+            get_indexed_row = (
+                lambda idx, key, record: [idx] + [key] + list(record.values())
+            )
+        else:
+            get_indexed_row = lambda _idx, key, record: [key] + list(record.values())
+
+        for idx, (key, record) in enumerate(data_dict.items()):
+            row = get_indexed_row(idx, key, record)
+            if len(row) == len(header):
+                indexed_data.append(row)
+            else:
+                raise ValueError(
+                    f"Data is not in tabula format. Header length: {len(header)}, row length at {idx}: {len(row)}"
+                )
+
+        return [header] + indexed_data
+
     def parse_data_or_path(self):
+
         if self.is_path:
             match self.file_type:
                 case "csv":
@@ -154,7 +186,7 @@ class TableUI(Screen):
                         csv_reader = csv.reader(file)
 
                         return (
-                            self.get_indexed_data_with_header(csv_reader)
+                            self.get_indexed_nested_list_data_with_header(csv_reader)
                             if self.ignore_index
                             else list(csv_reader)
                         )
@@ -163,37 +195,9 @@ class TableUI(Screen):
                     # CR-someday: add testing for the tabula validation
                     with open(self.data_or_path, "r") as file:
                         json_dict: dict = json.load(file)
-                        index_col = (
-                            [self.ID_COL, "original_id"]
-                            if self.ignore_index
-                            else [self.ID_COL]
+                        return self.parse_dict_to_nested_list_data_with_header(
+                            json_dict
                         )
-                        header = index_col + [
-                            k for k in list(json_dict.values())[0].keys()
-                        ]
-
-                        indexed_data = []
-                        if self.ignore_index:
-                            get_indexed_row = (
-                                lambda idx, key, record: [idx]
-                                + [key]
-                                + list(record.values())
-                            )
-                        else:
-                            get_indexed_row = lambda _idx, key, record: [key] + list(
-                                record.values()
-                            )
-
-                        for idx, (key, record) in enumerate(json_dict.items()):
-                            row = get_indexed_row(idx, key, record)
-                            if len(row) == len(header):
-                                indexed_data.append(row)
-                            else:
-                                raise ValueError(
-                                    f"Data is not in tabula format. Header length: {len(header)}, row length at {idx}: {len(row)}"
-                                )
-
-                        return [header] + indexed_data
                 case _:
                     raise NotImplementedError
         else:
@@ -210,9 +214,16 @@ class TableUI(Screen):
                 self.data_or_path[0], list
             ):
                 return (
-                    self.get_indexed_data_with_header(self.data_or_path)
+                    self.get_indexed_nested_list_data_with_header(self.data_or_path)
                     if self.ignore_index
                     else self.data_or_path
+                )
+
+            elif isinstance(self.data_or_path, dict) and isinstance(
+                list(self.data_or_path.values())[0], dict
+            ):
+                return self.parse_dict_to_nested_list_data_with_header(
+                    self.data_or_path
                 )
             else:
                 raise NotImplementedError
@@ -420,6 +431,31 @@ class TableUI(Screen):
 
         return header_without_numeric_index, res
 
+    def convert_data_with_header_to_dict(
+        self, data_with_header: list[list[str]], header_without_numeric_index: list
+    ):
+        if self.ignore_index:
+            header_without_numeric_index.pop(
+                header_without_numeric_index.index(self.ORIGINAL_ID_COL)
+            )  # ORIGINAL_ID_COL will be the top level key of the dictionary instead of a column/field
+
+        data_without_header = data_with_header[1:]
+        data_dict = {
+            row[0]: {k: v for k, v in zip(header_without_numeric_index, row[1:])}
+            for row in data_without_header
+        }
+        for idx, record in data_dict.items():
+            for k, v in record.items():
+                if v and v[0] == "{":
+                    data_dict[idx][k] = json.loads(v.replace("'", '"'))
+                else:
+                    try:
+                        data_dict[idx][k] = ast.literal_eval(v)
+                    except (SyntaxError, ValueError):
+                        pass
+
+        return data_dict
+
     def export_to_data_path(self):
         # CR: all export should try to eval the value, or may store the original type?
         header, data_with_header = self.get_data_as_nested_list()
@@ -430,7 +466,7 @@ class TableUI(Screen):
             )
             if not self.is_export_data:
                 return None
-        # CR-soon: may be separate the file_path vs source data handling to two functions
+            # CR-soon: may be separate the file_path vs source data handling to two functions
             match self.file_type:
                 case "csv":
                     with open(self.data_or_path, "r") as file:
@@ -453,23 +489,9 @@ class TableUI(Screen):
                 case "json":
                     # CR-someday: consider not hard-coding the index as 0 for future scalability
                     # CR-soon: this should be tested carefully
-                    header = (
-                        header[1:] if self.ignore_index else header
-                    )  # header[1:] is "original_index"
-                    data_without_header = data_with_header[1:]
-                    data_dict = {
-                        row[0]: {k: v for k, v in zip(header, row[1:])}
-                        for row in data_without_header
-                    }
-                    for idx, record in data_dict.items():
-                        for k, v in record.items():
-                            if v and v[0] == "{":
-                                data_dict[idx][k] = json.loads(v.replace("'", '"'))
-                            else:
-                                try:
-                                    data_dict[idx][k] = ast.literal_eval(v)
-                                except (SyntaxError, ValueError):
-                                    pass
+                    data_dict = self.convert_data_with_header_to_dict(
+                        data_with_header, header
+                    )
 
                     with open(self.data_or_path, "r") as file:
                         original_data = json.load(file)
@@ -500,6 +522,10 @@ class TableUI(Screen):
                     list()
                 ):  # CR-soon: make it to detect 1-level nested list (may have higher ordered nested list in the future)
                     self.return_data = data_with_header
+                case dict():
+                    self.return_data = self.convert_data_with_header_to_dict(
+                        data_with_header, header
+                    )
                 case _:
                     raise NotImplementedError
 
