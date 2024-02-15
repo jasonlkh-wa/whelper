@@ -3,14 +3,6 @@ import argparse
 import logging
 
 
-"""
-CR-soon: complete this section and give example of [MainArgParser]'s 
-add_all_subparsers_from_dict(self, subparser_dict)
-Expected Usage:
-
-"""
-
-
 # CR: think of a way to let [SubtoolParser] inherit [MainParser] so
 # that the class can iteratively define
 class SubtoolParser:
