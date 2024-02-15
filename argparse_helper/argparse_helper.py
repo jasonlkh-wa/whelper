@@ -11,6 +11,8 @@ Expected Usage:
 """
 
 
+# CR: think of a way to let [SubtoolParser] inherit [MainParser] so
+# that the class can iteratively define
 class SubtoolParser:
     """
     CR-soon: docstring
@@ -24,7 +26,7 @@ class SubtoolParser:
         )  # this is a dummy parser to contain the args
 
         self.subparser.add_argument(
-            "-dev",
+            "--dev",
             required=False,
             help="<optional> enable dev mode",
             action="store_true",
@@ -50,6 +52,29 @@ class MainArgParser:
         subparser_description (str, optional): The description for the subparsers. Defaults to "the tool list".
         subparsers_name (str, optional): The name for the subparsers. Defaults to "tool".
         description (str, optional): The description for the argument parser. Defaults to "select the tool to be used".
+        logger (logging.Logger | None, optional): The logger object for logging messages/warnings. Defaults to None \
+                                                    (a new logger will be created if None).
+
+    Attributes:
+        parser (argparse.ArgumentParser): The argument parser object.
+        subparsers_name (str): The name for the subparsers.
+        subparsers (argparse._SubParsersAction): The subparsers object for adding subcommands.
+        subparser_name_to_function_dict (dict): A dictionary mapping subparser names to associated functions.
+        logger (logging.Logger): The logger object for logging warnings.
+
+    Methods:
+        parse_args(): Parse the command-line arguments.
+        add_all_subparsers_from_dict(subparser_dict): Add multiple subparsers from a dictionary.
+        call_subtool(args): Call the function associated with the selected subtool.
+
+    Example usage:
+        parser = MainArgParser(prog='my_tool', description='A command-line tool')
+        parser.add_all_subparsers_from_dict({
+            Parser1: function1,
+            Parser2: function2,
+        })
+        args = parser.parse_args()
+        parser.call_subtool(args)
     """
 
     def __init__(
