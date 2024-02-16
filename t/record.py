@@ -5,6 +5,7 @@ class Record:
     pass
 
 
+# CR: add set_* method, and change all field to _field
 def create_record_type(
     record: dict[str, type | set],
     type_enforced=True,
@@ -56,6 +57,9 @@ def create_record_type(
                             TypeError,
                             f"Expected {type_t} for {k}, got {type(kwargs[k])}",
                         )
+
+        def to_dict(self):
+            return {k: getattr(self, k) for k in self.RECORD.keys()}
 
         def __repr__(self):
             class_name = self.__class__.__name__

@@ -17,6 +17,7 @@ class VimDataTable(DataTable):
             action="show_row_detail()",
             description="Show details",
             show=True,
+            key_display="p",
         ),
     ]
 
@@ -74,7 +75,7 @@ class DetailRow(Screen):
             details.add_column(i, width=width)
 
         for row in self.values:
-            details.add_row(*row, height=max([len(i) // 50 + 1 for i in row]))
+            details.add_row(*row, height=max([len(str(i)) // 50 + 1 for i in row]))
 
     def action_show_full_text(self):
         details = self.query_one("#details", VimDataTable)
@@ -110,11 +111,13 @@ class DetailCell(Screen):
         # The issue also exists in VimDataTable's main table, but users may want to
         # style through the control sequences and do not expect the sequences to be a
         # frequent issue in csv. Hence, they are not currently handled
-        self.values = [i.replace("[", "\\[") for i in values]
+        self.values = [str(i).replace("[", "\\[") for i in values]
 
     def compose(self) -> ComposeResult:
         yield Label(
-            "\n\n".join(["\n".join(textwrap.wrap(i, width=70)) for i in self.values])
+            "\n\n".join(
+                ["\n".join(textwrap.wrap(str(i), width=70)) for i in self.values]
+            )
         )
         yield Header(show_clock=True)
         yield Footer()

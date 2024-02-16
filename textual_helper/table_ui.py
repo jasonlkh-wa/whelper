@@ -6,6 +6,7 @@ from textual.binding import Binding
 from textual.screen import Screen
 from textual.app import ComposeResult
 from textual.coordinate import Coordinate
+import rich.text
 import datetime
 import csv
 import pandas as pd
@@ -14,6 +15,7 @@ import copy
 import ast
 
 
+# CR: sorting column keybind, then custom sorting dict[column, function]
 # CR-someday: It is a know issue that "[n]" or alphabets with square brackets are unable to display.
 # This is due to the textual library recognizing them as the terminal control sequences.
 class TableUI(Screen):
@@ -78,7 +80,7 @@ class TableUI(Screen):
             action="show_log()",
             description="show log",
             show=True,
-            key_display="p",
+            key_display="P",
         ),
     ]
     DELETE_MESSAGE = ":d please confirm (y/[n]): "
@@ -245,7 +247,10 @@ class TableUI(Screen):
             table.add_column(i, width=width, key=i)
 
         for idx, row_values in enumerate(self.data):
-            row_values = [str(i) for i in row_values]
+            row_values = [
+                rich.text.Text(str(i)) if not isinstance(i, rich.text.Text) else i
+                for i in row_values
+            ]
             table.add_row(*row_values, key=idx)
 
         # Periodically export data to data_path for backup
@@ -427,7 +432,7 @@ class TableUI(Screen):
         ]  # although [1:] can also remove the ID column, this impl would potentially provide more flexibility for the future
         for idx in range(table.row_count):
             row = table.get_row_at(idx)
-            res.append([row[i] for i in value_idx_to_be_exported])
+            res.append([str(row[i]) for i in value_idx_to_be_exported])
 
         return header_without_numeric_index, res
 
@@ -457,7 +462,19 @@ class TableUI(Screen):
         return data_dict
 
     def export_to_data_path(self):
-        # CR: all export should try to eval the value, or may store the original type?
+        """Export the data to [self.data_or_path] if it is a file path.
+
+        [export_to_data_path] preserves the type of the import data,
+        (e.g. dict, list, dataframe)
+        but does not gurantee to preserve the type of the column type.
+
+        Args:
+            None
+
+        Returns:
+            list[list[str]] if [self.data_or_path] is a file path,
+            else [self.source_data_type]
+        """
         header, data_with_header = self.get_data_as_nested_list()
 
         if self.is_path:
