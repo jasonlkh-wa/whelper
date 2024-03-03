@@ -6,7 +6,6 @@ class Record:
     pass
 
 
-# CR: add set_* method, and change all field to _field
 def create_record_type(
     record: dict[str, type | set],
     type_caster_dict: dict | None = None,
@@ -90,7 +89,6 @@ def create_record_type(
                 error = self.setattr(name, value)
                 if error is not None:
                     raisels(type(error), str(error))
-                print(name)
                 self.setattr(f"set_{name}", self.create_set_methods(name))
 
         def to_dict(self):

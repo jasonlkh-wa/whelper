@@ -1,3 +1,4 @@
-pandas==2.2.0
+pandas==2.2.1
 python-dotenv==1.0.1
-textual==0.48.2
+rich==13.7.1
+textual==0.52.1

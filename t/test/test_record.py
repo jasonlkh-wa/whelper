@@ -3,6 +3,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from record import create_record_type, Record
+from whelper import printls
 
 SampleClass = create_record_type({"a": int, "b": str})
 sample_instance = SampleClass(a=1, b="2")
@@ -26,7 +27,7 @@ def test_create_record_type_with_wrong_type():
     except TypeError:
         assert True
         return None
-    print("Expected TypeError not raised")
+    printls("Expected TypeError not raised")
     assert False
 
 
@@ -46,7 +47,7 @@ def test_block_direct_assignment():
     except AttributeError:
         assert True
         return None
-    print(
+    printls(
         "Expected AttributeError not raised, the class should block direct assignment"
     )
     assert False
